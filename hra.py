@@ -599,7 +599,7 @@ def main():
     """Hlavní funkce programu – celá hra"""
     ## Vytvoříme si hru a okýnko
     board = Board()
-    window = pyglet.window.Window()
+    window = pyglet.window.Window(resizable=True)
 
     ## To, co se má stát když nastane nějaká událost, Pygletu řekneme
     ## pomocí dekorátoru @window.event.
