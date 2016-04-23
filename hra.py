@@ -13,12 +13,14 @@ import pyglet
 ## znamená: místo "8" napíšeme rozumné jméno, abychom věděli že jde třeba
 ## o počet sloupců šachovnice.
 
-COLUMNS = 8         ## počet sloupců "šachovnice"
-ROWS = 8            ## počet řádků "šachovnice"
+COLUMNS = 9         ## počet sloupců "šachovnice"
+ROWS = 9            ## počet řádků "šachovnice"
 
 SPACING = 20        ## mezera mezi jednotlivými políčky (v pixelech)
 MOVE_SPEED = 5      ## rychlost animace přesouvání
-EXPLODE_SPEED = 3   ## rychlost animace odstranění obrázku
+EXPLODE_SPEED = 1   ## rychlost animace odstranění obrázku
+ROW_TO_COLLAPSE = 3 # minimální počet stejných obrázků
+
 
 # Další konstanty jsou specifické pro tuhle konkrétní hru:
 
@@ -31,16 +33,14 @@ ACTIVE_PATH = 'assets/animal-pack/PNG/Square (outline)/{}.png'
 ## (které přesahují dolů), je číslo kladné; když má velké uši
 ## (které přesahují nahoru), je číslo záporné. Víc viz funkce image_load.
 ANIMAL_INFO = (
-    ('snake', 25),
-    ('penguin', 0),
-    ('monkey', 0),
-    ('giraffe', -45),
-    ('panda', -25),
-    ('pig', -15),
-    ('hippo', -10),
-    ('parrot', 0),
-    ('rabbit', -65),
-    ('elephant', 0),
+    ('agata', 0, 0),
+    ('booo', 0, 0),
+    ('agata1', 0, 0),
+    ('mike_w', 0, 0),
+    ('boo1', 0, 0),
+    ('sullivan', 0, 0),
+    ('steve', 0, 0),
+    ('ucetni', 0, 0),
 )
 
 
@@ -72,14 +72,15 @@ def image_load(filename, offset=0):
 
 ## Načteme normální (čtvercové) obrázky: pro každé jméno z ANIMAL_INFO
 ## jeden obrázek
-pictures = [image_load(IMG_PATH.format(name))
-            for name, offset in ANIMAL_INFO]
+pictures = [image_load(IMG_PATH.format(name), offset)
+            for name, offset_active, offset in ANIMAL_INFO]
 ## Načteme aktivní obrázky (s vyčuhujícíma ušima/zubama): tady použijeme
 ## offset, druhý prvek z dvojice v ANIMAL_INFO
-active_pictures = [image_load(ACTIVE_PATH.format(name), offset)
-                   for name, offset in ANIMAL_INFO]
+active_pictures = [image_load(ACTIVE_PATH.format(name), offset_active)
+                   for name, offset_active, offset in ANIMAL_INFO]
 ## Pak načteme obrázek, který pak použijeme jako pozadí k vybranému obrázku
-active_bg_img = image_load('assets/puzzle-pack-2/PNG/Tiles grey/tileGrey_01.png')
+#active_bg_img = image_load('assets/puzzle-pack-2/PNG/Tiles grey/tileGrey_01.png')
+active_bg_img = image_load('assets/animal-pack/PNG/Square/pes.png')
 ## A na pozadí rovnou vytvoříme i sprite – objekt, který můžeme vykreslit.
 bg_sprite = pyglet.sprite.Sprite(active_bg_img)
 
@@ -225,8 +226,9 @@ class Tile:
         ## Každé políčko má k dispozici dva "sprity" – obrázky, které
         ## se dají vykreslovat na danou pozici. Jeden s normálním obrázkem,
         ## jeden pro políčko které je zrovna pod myší.
-        self.sprite = pyglet.sprite.Sprite(pictures[self.value])
+        self.sprite = pyglet.sprite.Sprite(active_bg_img)
         self.active_sprite = pyglet.sprite.Sprite(active_pictures[self.value])
+        # self.active_sprite.rotation = 180
 
     def draw(self, x, y, window, selected=False):
         """Vykreslí tohle políčko na obrazovku, na dané souřadnici
@@ -300,7 +302,7 @@ class Board:
         ## Budeme si pamatovat právě vybrané políčko: to bude buď (x, y)
         ## v logických souřadnicích, nebo pokud políčko ještě hráč nevybral,
         ## tak None.
-        self.selected_tile = None
+        self.selected_tile = []
         ## A taky si budeme pamatovat nějaká políčka "navíc": to jsou ty,
         ## které hráč odstranil, takže z pohledu herní logiky už neexistují,
         ## ale ještě u nich neskončila poslední animace.
@@ -308,7 +310,7 @@ class Board:
         self.extra_tiles = set()
 
         ## Teď uděláme ještě jednu věc: na začátku na šachovnici nechceme
-        ## mít skupiny 3 a víc stejných zvířátek vedle sebe.
+        ## mít skupiny 4 a víc stejných zvířátek vedle sebe.
         ## Proto projdeme šachovnici a vždycky, když na takovou skupinu
         ## narazíme, zaměníme dané zvířátko za jiné.
         ## (Pokud čteš komentáře od začátku, doporučuju tenhle cyklus
@@ -319,7 +321,7 @@ class Board:
                 ## aby to netrvalo tak dlouho.
                 for iteration in range(5):
                     area = self.check_area(x, y)
-                    if len(area) >= 3:
+                    if len(area) >= ROW_TO_COLLAPSE:
                         ## Záměna políčka za nové
                         self.content[x][y] = Tile()
                     else:
@@ -329,22 +331,6 @@ class Board:
         """Vykreslí celou šachovnici"""
         ## Nejdřív vykreslíme podklad pro vybrané políčko, pokud tedy
         ## nějaké vybrané je.
-        if self.selected_tile is not None:
-            ## Nastavíme spritu souřadnice
-            logical_x, logical_y = self.selected_tile
-            x, y = logical_to_screen(logical_x, logical_y, window)
-            bg_sprite.x = x
-            bg_sprite.y = y
-            ## Nastavíme barvu: tahle trojice je (červená, zelená, modrá),
-            ## a pomocí ní se celý obrázek ztmaví.
-            ## 0 znamená že daná barva bude úplně chybět; 255 znamená
-            ## žádné ztmavení.
-            ## Takže (150, 150, 255) trochu ztmaví červenou a zelenou složku,
-            ## a zůstane zelená.
-            bg_sprite.color = 150, 150, 255
-            ## Tak. Nakonec sprite vykreslíme.
-            bg_sprite.draw()
-
 
         ## Teď projdeme celou šachovnici, a vykreslíme všechna políčka na ní.
         ## Použijeme funkci "enumerate", která bere nějakou sekvenci (např.
@@ -355,8 +341,12 @@ class Board:
             ## A v tomhle cyklu bude "y" souřadnice (0, 1, 2, ...) a "tile"
             ## už dané políčko.
             for y, tile in enumerate(column):
-                ## Políčko stačí vykreslit.
-                tile.draw(x, y, window)
+                if tile is not None:
+                    ## Políčko stačí vykreslit.
+                    if (x, y) in self.selected_tile:
+                        tile.draw (x, y, window, selected = True)
+                    else:
+                        tile.draw(x, y, window)
 
         ## Teď vykreslíme políčko pod kurzorem ještě jednou, s "aktivním"
         ## obrázkem.
@@ -369,7 +359,8 @@ class Board:
         if 0 <= x < COLUMNS and 0 <= y < ROWS:
             ## A pak vezmeme políčko a vykreslíme ho:
             tile = self.content[x][y]
-            tile.draw(x, y, window, True)
+            if tile is not None:
+                tile.draw(x, y, window, True)
 
         ## A nakonec vykreslíme "políčka navíc" z extra_tiles:
         for x, y, tile in self.extra_tiles:
@@ -387,54 +378,40 @@ class Board:
         current_tile = self.content[x][y]
         ## Pokud se tohle políčko právě animuje (padá, nebo se vyměňuje
         ## s jiným), tak kliknutí budeme ignorovat.
+        if current_tile is None:
+            return
         if current_tile.animation:
             return
-        ## Co uděláme dál závisí na tom, jestli už je něco vybrané.
-        ## A je to specifické pro tuhle hru.
-        if self.selected_tile is None:
-            ## Když není vybrané nic, tak dané políčko prostě vybereme.
-            self.selected_tile = x, y
-        elif self.selected_tile == (x, y):
-            ## Když je vybrané stejné políčko na jaké hráč kliknul,
-            ## tak výběr zrušíme.
-            self.selected_tile = None
-        else:
-            ## Jinak kliknuté a vybrané políčka vyměníme.
-            ## Na to budeme potřebovat souřadnice toho druhého políčka:
-            other_x, other_y = self.selected_tile
-            ## Samotná výměna:
-            self.content[x][y], self.content[other_x][other_y] = (
-                self.content[other_x][other_y], self.content[x][y])
-            ## Zbytek je nastavení animace.
-            ## Když vyměňujeme políčka dál od sebe, animace by měla trvat
-            ## trochu déle než když jsou těsně vedle sebe.
-            ## Tohle není žádný exaktní vzorec – čísla jsou vybrána od oka,
-            ## aby to vypadalo hezky.
-            duration = ((x - other_x)**2 + (y - other_y)**2) ** 0.2
-            ## Když máme dobu trvání animace, tak vyměněným políčkům
-            ## přiřadíme nové animační objekty.
-            self.content[x][y].animation = MoveAnimation(
-                other_x, other_y, duration)
-            self.content[other_x][other_y].animation = MoveAnimation(
-                x, y, duration)
-            ## A nakonec zrušíme výběr.
-            self.selected_tile = None
+
+        if len (self.selected_tile) in [0, 1]:
+            self.selected_tile.append((x, y))
+        elif len (self.selected_tile) == 2:
+            x1, y1 = self.selected_tile[0]
+            x2, y2 = self.selected_tile[1]
+            value1 = self.content[x1][y1].value
+            value2 = self.content[x2][y2].value
+            if value1 == value2:
+                self.content[x1][y1] = None
+                self.content[x2][y2] = None
+            self.selected_tile = [(x, y)]
+
 
     def update(self, t):
         """Posune animace v celé hře o "t" sekund"""
         ## Projdeme všechna políčka, a posuneme jejich animace:
         for x, column in enumerate(self.content):
             for y, tile in enumerate(column):
-                result = tile.update(t)
-                ## Když některému políčku animace skončila (update vrátilo
-                ## True), nejspíš se dokončila výměna políček nebo obrázek
-                ## dopadl zvrchu na místo.
-                ## V takovém případě musíme zkontrolovat, jestli se tím
-                ## nevytvořil shluk 3 a víc obrázků, a případně takový
-                ## shluk odstranit.
-                ## To je samozřejmě specifické pro tuhle hru.
-                if result:
-                    self.check_and_remove_area(x, y)
+                if tile is not None:
+                    result = tile.update(t)
+                    ## Když některému políčku animace skončila (update vrátilo
+                    ## True), nejspíš se dokončila výměna políček nebo obrázek
+                    ## dopadl zvrchu na místo.
+                    ## V takovém případě musíme zkontrolovat, jestli se tím
+                    ## nevytvořil shluk 3 a víc obrázků, a případně takový
+                    ## shluk odstranit.
+                    ## To je samozřejmě specifické pro tuhle hru.
+                    if result:
+                        self.check_and_remove_area(x, y)
 
         ## Nakonec ještě posuneme animace u políček navíc.
         ## Jakmile u některého z nich animace skončí, už ho nebudeme
@@ -504,7 +481,7 @@ class Board:
         ## Zjistíme, co je ve shluku
         area = self.check_area(x, y)
         ## A je-li moc velký, smažeme ho...
-        if len(area) >= 3:
+        if len(area) >= ROW_TO_COLLAPSE:
             ## Postupujeme po sloupcích; pro každý sloupec shora dolů.
             for x in range(COLUMNS):
                 ## Budeme si pamatovat, o kolika vymazaných políčkách už
@@ -609,6 +586,7 @@ class ExplodeAnimation:
         tile.sprite.scale *= 1 + self.pos * 2
         ## Průhlednost obrázku jde od 255 (neprůhledný) po 0 (průhledný).
         tile.sprite.opacity = 255 * (1 - self.pos)
+        tile.sprite.rotation = 180 * self.pos
         ## Všechno je nastaveno, můžeme obrázek vykreslit.
         tile.sprite.draw()
 
@@ -652,13 +630,15 @@ def main():
     @window.event
     def on_mouse_press(x, y, button, modifiers):
         """Zavolá se, když hráč klikne myší"""
-        ## Vezmeme si logické souřadnice
-        logical_x, logical_y = screen_to_logical(x, y, window)
-        ## Zaokrouhlíme je na celá čísla
-        logical_x = round(logical_x)
-        logical_y = round(logical_y)
-        ## A delegujeme na šachovnici...
-        board.action(logical_x, logical_y)
+        if button == 1:
+            ## Vezmeme si logické souřadnice
+            logical_x, logical_y = screen_to_logical(x, y, window)
+            ## Zaokrouhlíme je na celá čísla
+            logical_x = round(logical_x)
+            logical_y = round(logical_y)
+            ## A delegujeme na šachovnici...
+            board.action(logical_x, logical_y)
+        #print(button, modifiers)
 
     @window.event
     def on_key_press(key, mod):
